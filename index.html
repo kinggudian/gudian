@@ -134,6 +134,9 @@
           <div class="flex items-center space-x-2">
             <span id="q-number" class="bg-slate-900 text-white font-bold text-sm px-2.5 py-1 rounded">Q1</span>
             <span id="q-type" class="text-xs text-blue-600 font-semibold">[객관식]</span>
+            <button id="flag-btn" onclick="toggleFlag()" title="나중에 다시 보기" class="p-1.5 rounded border border-slate-300 text-slate-400 hover:bg-amber-50 transition">
+              <i data-lucide="bookmark" class="w-4 h-4"></i>
+            </button>
           </div>
           <div class="flex items-center space-x-2">
             <button onclick="prevQuestion()" class="p-1.5 rounded hover:bg-slate-200 border border-slate-300">
@@ -163,6 +166,24 @@
             <div id="explanation-text" class="text-slate-600 whitespace-pre-line leading-relaxed">해설 정보가 없습니다.</div>
           </div>
         </div>
+      </div>
+
+      <!-- STEP 3: RESULT VIEW -->
+      <div id="result-view" class="hidden flex-1 flex flex-col overflow-hidden">
+        <div class="p-6 border-b border-slate-200 text-center space-y-2">
+          <p class="text-sm text-slate-500">시험 결과</p>
+          <p id="result-score" class="text-4xl font-extrabold text-blue-600">0<span class="text-lg text-slate-400">점 / 100점</span></p>
+          <div class="flex justify-center gap-4 text-xs font-bold pt-1">
+            <span id="result-correct-count" class="text-emerald-600">정답 0</span>
+            <span id="result-wrong-count" class="text-red-500">오답 0</span>
+            <span id="result-unanswered-count" class="text-amber-500">미응시 0</span>
+          </div>
+          <div class="flex justify-center gap-2 pt-3">
+            <button onclick="reviewFromStart()" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-4 py-2 rounded-lg transition">문제 다시 보기</button>
+            <button onclick="resetToSetup()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-bold px-4 py-2 rounded-lg transition">처음으로</button>
+          </div>
+        </div>
+        <div id="result-list" class="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-2"></div>
       </div>
     </section>
 
@@ -198,6 +219,7 @@
 
     let examData = [];
     let userAnswers = {};
+    let flaggedQuestions = new Set();
     let currentIndex = 0;
     let timerInterval = null;
     let totalSeconds = 3600;
@@ -209,6 +231,36 @@
       setupDragAndDrop();
       refreshAdminTokenStatus();
       await fetchExamIndex();
+    });
+
+    // 시험 도중 새로고침/탭 닫기로 답안이 날아가지 않도록 경고합니다.
+    window.addEventListener('beforeunload', (e) => {
+      const examVisible = !document.getElementById('exam-view').classList.contains('hidden');
+      if (examVisible && !isSubmitted) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    });
+
+    // 숫자키(1~4)로 답 선택, 방향키로 문제 이동, F키로 플래그 토글
+    window.addEventListener('keydown', (e) => {
+      const activeTag = document.activeElement && document.activeElement.tagName;
+      if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return;
+
+      const examVisible = !document.getElementById('exam-view').classList.contains('hidden');
+      if (!examVisible) return;
+
+      if (e.key >= '1' && e.key <= '4') {
+        if (!isSubmitted) selectAnswer(parseInt(e.key, 10));
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        prevQuestion();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        nextQuestion();
+      } else if (e.key.toLowerCase() === 'f') {
+        toggleFlag();
+      }
     });
 
     // 다중 경로 및 Raw URL을 통한 안전한 JSON 호출
@@ -566,6 +618,7 @@
 
       currentIndex = 0;
       userAnswers = {};
+      flaggedQuestions = new Set();
       isSubmitted = false;
 
       renderQuestion();
@@ -613,6 +666,22 @@
       } else {
         solBox.classList.add('hidden');
       }
+
+      const flagBtn = document.getElementById('flag-btn');
+      if (flagBtn) {
+        const flagged = flaggedQuestions.has(currentIndex);
+        flagBtn.className = `p-1.5 rounded border transition ${
+          flagged ? 'border-amber-400 bg-amber-50 text-amber-500' : 'border-slate-300 text-slate-400 hover:bg-amber-50'
+        } ${isSubmitted ? 'opacity-50 cursor-not-allowed' : ''}`;
+      }
+    }
+
+    function toggleFlag() {
+      if (isSubmitted) return;
+      if (flaggedQuestions.has(currentIndex)) flaggedQuestions.delete(currentIndex);
+      else flaggedQuestions.add(currentIndex);
+      renderQuestion();
+      renderOMR();
     }
 
     function selectAnswer(ansNum) {
@@ -633,10 +702,11 @@
         if (userAnswers[idx]) markedCount++;
 
         const row = document.createElement('div');
-        row.className = `flex items-center justify-between p-2 rounded hover:bg-slate-100 cursor-pointer text-xs ${
-          currentIndex === idx ? 'bg-slate-100 font-bold' : ''
-        }`;
-        row.onclick = () => { currentIndex = idx; renderQuestion(); };
+        const flagged = flaggedQuestions.has(idx);
+        row.className = `flex items-center justify-between p-2 rounded hover:bg-slate-100 cursor-pointer text-xs border-l-4 ${
+          flagged ? 'border-amber-400' : 'border-transparent'
+        } ${currentIndex === idx ? 'bg-slate-100 font-bold' : ''}`;
+        row.onclick = () => { currentIndex = idx; renderQuestion(); renderOMR(); };
 
         let numButtonsHtml = '';
         [1, 2, 3, 4].forEach(num => {
@@ -689,19 +759,93 @@
     }
 
     function submitExam() {
-      if (!confirm('정말 답안을 제출하시겠습니까?')) return;
-      
+      const unansweredIdx = examData.map((_, idx) => idx).filter(idx => !userAnswers[idx]);
+
+      let confirmMsg = '정말 답안을 제출하시겠습니까?';
+      if (unansweredIdx.length > 0) {
+        const preview = unansweredIdx.slice(0, 10).map(i => `Q${i + 1}`).join(', ');
+        const more = unansweredIdx.length > 10 ? ` 외 ${unansweredIdx.length - 10}개` : '';
+        confirmMsg = `아직 풀지 않은 문제가 ${unansweredIdx.length}개 있습니다 (${preview}${more}).\n그래도 제출하시겠습니까?`;
+      }
+      if (!confirm(confirmMsg)) return;
+
       clearInterval(timerInterval);
       isSubmitted = true;
+      showResultView();
+    }
 
-      let score = 0;
+    function computeResultStats() {
+      let correct = 0, wrong = 0, unanswered = 0;
       examData.forEach((q, idx) => {
-        if (userAnswers[idx] === q.answer) score += (100 / examData.length);
+        const ans = userAnswers[idx];
+        if (!ans) unanswered++;
+        else if (ans === q.answer) correct++;
+        else wrong++;
       });
+      const score = Math.round((correct / examData.length) * 100);
+      return { correct, wrong, unanswered, score };
+    }
 
-      alert(`시험 제출 완료!\n최종 점수: ${Math.round(score)}점 / 100점`);
+    function showResultView() {
+      document.getElementById('exam-view').classList.add('hidden');
+      document.getElementById('omr-container').classList.add('hidden');
+      document.getElementById('timer-box').classList.add('hidden');
+      document.getElementById('timer-box').classList.remove('flex');
+      document.getElementById('submit-btn').classList.add('hidden');
+      document.getElementById('result-view').classList.remove('hidden');
+
+      const stats = computeResultStats();
+      document.getElementById('result-score').innerHTML = `${stats.score}<span class="text-lg text-slate-400">점 / 100점</span>`;
+      document.getElementById('result-correct-count').textContent = `정답 ${stats.correct}`;
+      document.getElementById('result-wrong-count').textContent = `오답 ${stats.wrong}`;
+      document.getElementById('result-unanswered-count').textContent = `미응시 ${stats.unanswered}`;
+
+      const listEl = document.getElementById('result-list');
+      listEl.innerHTML = '';
+      examData.forEach((q, idx) => {
+        const ans = userAnswers[idx];
+        let statusLabel, statusClass, borderClass;
+        if (!ans) {
+          statusLabel = '미응시'; statusClass = 'text-amber-600'; borderClass = 'border-amber-200 bg-amber-50';
+        } else if (ans === q.answer) {
+          statusLabel = '정답'; statusClass = 'text-emerald-600'; borderClass = 'border-emerald-200';
+        } else {
+          statusLabel = '오답'; statusClass = 'text-red-600'; borderClass = 'border-red-200 bg-red-50';
+        }
+
+        const row = document.createElement('div');
+        row.className = `flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer hover:bg-slate-50 transition ${borderClass}`;
+        row.onclick = () => jumpToQuestionFromResult(idx);
+        row.innerHTML = `
+          <span class="font-bold text-xs w-8 flex-shrink-0">Q${idx + 1}</span>
+          ${flaggedQuestions.has(idx) ? '<i data-lucide="bookmark" class="w-3.5 h-3.5 text-amber-500 flex-shrink-0"></i>' : ''}
+          <span class="flex-1 text-xs text-slate-600 truncate">${q.question}</span>
+          <span class="text-xs font-bold flex-shrink-0 ${statusClass}">${statusLabel}</span>
+        `;
+        listEl.appendChild(row);
+      });
+      lucide.createIcons();
+    }
+
+    function jumpToQuestionFromResult(idx) {
+      currentIndex = idx;
+      document.getElementById('result-view').classList.add('hidden');
+      document.getElementById('exam-view').classList.remove('hidden');
+      document.getElementById('omr-container').classList.remove('hidden');
       renderQuestion();
       renderOMR();
+    }
+
+    function reviewFromStart() {
+      jumpToQuestionFromResult(0);
+    }
+
+    function resetToSetup() {
+      document.getElementById('result-view').classList.add('hidden');
+      document.getElementById('exam-view').classList.add('hidden');
+      document.getElementById('omr-container').classList.add('hidden');
+      document.getElementById('setup-view').classList.remove('hidden');
+      document.getElementById('exam-title').textContent = '과목/회차를 선택해주세요';
     }
 
     function toggleMobileOMR() {
