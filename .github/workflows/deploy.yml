@@ -1,7 +1,9 @@
-name: Deploy CBT Web App automatically
+name: Auto Generate Exams JSON for Vercel
 
 on:
   push:
+    paths:
+      - 'pdfs/**'
     branches:
       - main
       - master
@@ -10,10 +12,10 @@ permissions:
   contents: write
 
 jobs:
-  build-and-deploy:
+  build-and-commit:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Setup Node.js
@@ -21,11 +23,10 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Generate Exam Index JSON
+      - name: Generate exams.json
         run: |
           node -e '
           const fs = require("fs");
-          const path = require("path");
           const pdfDir = "./pdfs";
           let pdfList = [];
           
@@ -34,11 +35,11 @@ jobs:
             files.forEach(file => {
               if (file.endsWith(".pdf")) {
                 const parts = file.replace(".pdf", "").split("_");
-                const subject = parts[0] || "기본과목";
-                const dateRaw = parts[1] || "000000";
+                const subject = parts[0] || "산업안전보건기준";
+                const dateRaw = parts[1] || "";
                 const formattedDate = dateRaw.length === 6 
                   ? `20${dateRaw.substring(0,2)}-${dateRaw.substring(2,4)}-${dateRaw.substring(4,6)}` 
-                  : dateRaw;
+                  : "모의고사";
                 
                 pdfList.push({
                   filename: file,
@@ -53,8 +54,10 @@ jobs:
           console.log("exams.json generated:", pdfList);
           '
 
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./
+      - name: Commit and Push exams.json back to main
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add exams.json
+          git commit -m "chore: auto update exams.json [skip ci]" || exit 0
+          git push origin main
