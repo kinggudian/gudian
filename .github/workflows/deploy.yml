@@ -1,0 +1,60 @@
+name: Deploy CBT Web App automatically
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Generate Exam Index JSON
+        run: |
+          node -e '
+          const fs = require("fs");
+          const path = require("path");
+          const pdfDir = "./pdfs";
+          let pdfList = [];
+          
+          if (fs.existsSync(pdfDir)) {
+            const files = fs.readdirSync(pdfDir);
+            files.forEach(file => {
+              if (file.endsWith(".pdf")) {
+                const parts = file.replace(".pdf", "").split("_");
+                const subject = parts[0] || "기본과목";
+                const dateRaw = parts[1] || "000000";
+                const formattedDate = dateRaw.length === 6 
+                  ? `20${dateRaw.substring(0,2)}-${dateRaw.substring(2,4)}-${dateRaw.substring(4,6)}` 
+                  : dateRaw;
+                
+                pdfList.push({
+                  filename: file,
+                  subject: subject,
+                  date: formattedDate,
+                  path: `pdfs/${file}`
+                });
+              }
+            });
+          }
+          fs.writeFileSync("exams.json", JSON.stringify(pdfList, null, 2));
+          console.log("exams.json generated:", pdfList);
+          '
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./
