@@ -96,6 +96,35 @@
           <p class="text-sm font-semibold text-slate-700">PDF 파일을 여기에 드래그하거나 클릭하여 선택</p>
           <p class="text-xs text-slate-400 mt-1">예: <span class="font-mono text-slate-600">산업안전보건기준_260922.pdf</span></p>
         </div>
+
+        <!-- Admin: GitHub 저장소 업로드 -->
+        <div class="text-right">
+          <button type="button" onclick="toggleAdminPanel()" class="text-xs text-slate-400 hover:text-slate-600 underline">관리자 모드</button>
+        </div>
+
+        <div id="admin-panel" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3 text-sm">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-amber-800 flex items-center space-x-1">
+              <i data-lucide="shield" class="w-4 h-4"></i><span>관리자 모드 (GitHub 저장소 업로드)</span>
+            </span>
+            <span id="admin-token-status" class="text-xs text-slate-500">토큰 없음</span>
+          </div>
+          <p class="text-xs text-slate-500 leading-relaxed">
+            업로드한 PDF를 이 저장소의 <span class="font-mono">pdfs/</span> 폴더에 저장해 모두의 드롭다운에 등록하려면,
+            이 저장소에 대해 <b>Contents 읽기/쓰기</b> 권한을 가진 GitHub Personal Access Token이 필요합니다.
+            토큰은 이 브라우저에만 저장되며 서버로 전송되지 않습니다.
+          </p>
+          <div class="flex space-x-2">
+            <input type="password" id="gh-token-input" placeholder="github_pat_... 또는 ghp_..." class="flex-1 border border-slate-300 rounded-lg p-2 text-xs font-mono" autocomplete="off">
+            <button type="button" onclick="saveGithubToken()" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-3 rounded-lg">저장</button>
+            <button type="button" onclick="clearGithubToken()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold px-3 rounded-lg">삭제</button>
+          </div>
+          <label class="flex items-center space-x-2 text-xs text-slate-600">
+            <input type="checkbox" id="admin-upload-toggle" class="rounded">
+            <span>PDF 업로드 시 GitHub 저장소(pdfs/)에도 자동 저장</span>
+          </label>
+          <div id="admin-upload-status" class="text-xs text-amber-700"></div>
+        </div>
       </div>
 
       <!-- STEP 2: ACTIVE QUESTION VIEW -->
@@ -178,6 +207,7 @@
     window.addEventListener('DOMContentLoaded', async () => {
       lucide.createIcons();
       setupDragAndDrop();
+      refreshAdminTokenStatus();
       await fetchExamIndex();
     });
 
@@ -290,7 +320,8 @@
       parseFilenameInfo(filename);
 
       const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      // pdf.js가 버퍼 소유권을 가져갈 수 있으므로, GitHub 업로드용으로 복사본을 따로 둡니다.
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
       let fullText = '';
 
       for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
@@ -322,6 +353,11 @@
       }
 
       initExam();
+
+      // overrideName이 있으면 이미 저장소(pdfs/)에서 불러온 파일이므로 재업로드하지 않습니다.
+      if (!overrideName) {
+        maybeUploadToGithub(filename, arrayBuffer);
+      }
     }
 
     // 같은 컬럼에 속한 텍스트 조각들을 y좌표 기준으로 묶어
@@ -352,6 +388,102 @@
       // 실제 공백은 이미 별도의 " " 조각으로 포함되어 있으므로, 조각 사이에
       // 공백을 추가로 끼워 넣지 않고 그대로 이어 붙여야 원문 그대로 복원됩니다.
       return lines.join('\n');
+    }
+
+    // ===== 관리자 모드: GitHub 저장소(pdfs/)에 PDF 업로드 =====
+    const GITHUB_OWNER = 'kinggudian';
+    const GITHUB_REPO = 'gudian';
+    const GITHUB_BRANCH = 'main';
+    const GH_TOKEN_KEY = 'gudian_admin_gh_pat';
+
+    function toggleAdminPanel() {
+      document.getElementById('admin-panel').classList.toggle('hidden');
+      refreshAdminTokenStatus();
+    }
+
+    function refreshAdminTokenStatus() {
+      const token = localStorage.getItem(GH_TOKEN_KEY);
+      const statusEl = document.getElementById('admin-token-status');
+      const toggleEl = document.getElementById('admin-upload-toggle');
+      if (statusEl) statusEl.textContent = token ? '토큰 저장됨' : '토큰 없음';
+      if (toggleEl) {
+        toggleEl.disabled = !token;
+        if (!token) toggleEl.checked = false;
+      }
+    }
+
+    function saveGithubToken() {
+      const input = document.getElementById('gh-token-input');
+      const value = input.value.trim();
+      if (!value) return alert('토큰을 입력해 주세요.');
+      localStorage.setItem(GH_TOKEN_KEY, value);
+      input.value = '';
+      refreshAdminTokenStatus();
+      alert('토큰이 이 브라우저에만 저장되었습니다.');
+    }
+
+    function clearGithubToken() {
+      localStorage.removeItem(GH_TOKEN_KEY);
+      refreshAdminTokenStatus();
+    }
+
+    // 큰 파일도 안전하게 base64로 변환하기 위해 청크 단위로 처리합니다.
+    function uint8ToBase64(bytes) {
+      let binary = '';
+      const chunkSize = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+      }
+      return btoa(binary);
+    }
+
+    async function maybeUploadToGithub(filename, arrayBuffer) {
+      const token = localStorage.getItem(GH_TOKEN_KEY);
+      const toggleEl = document.getElementById('admin-upload-toggle');
+      const statusEl = document.getElementById('admin-upload-status');
+      if (!token || !toggleEl || !toggleEl.checked) return;
+
+      if (statusEl) statusEl.textContent = `"${filename}" GitHub 저장소에 업로드 중...`;
+
+      try {
+        const path = `pdfs/${filename}`;
+        const apiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/pdfs/${encodeURIComponent(filename)}`;
+        const headers = {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/vnd.github+json'
+        };
+
+        // 동일한 이름의 파일이 이미 있으면 sha를 함께 보내야 덮어쓰기가 됩니다.
+        let sha;
+        const existing = await fetch(apiUrl, { headers });
+        if (existing.ok) {
+          sha = (await existing.json()).sha;
+        }
+
+        const base64Content = uint8ToBase64(new Uint8Array(arrayBuffer));
+
+        const res = await fetch(apiUrl, {
+          method: 'PUT',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: `feat: ${filename} 시험지 업로드`,
+            content: base64Content,
+            branch: GITHUB_BRANCH,
+            ...(sha ? { sha } : {})
+          })
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.message || `HTTP ${res.status}`);
+        }
+
+        if (statusEl) statusEl.textContent = `"${filename}" 업로드 완료! (${path}) — 목록 반영까지 약 1분 정도 걸릴 수 있습니다.`;
+      } catch (e) {
+        console.error('GitHub 업로드 실패:', e);
+        if (statusEl) statusEl.textContent = `업로드 실패: ${e.message}`;
+        alert(`GitHub 업로드에 실패했습니다: ${e.message}`);
+      }
     }
 
     function parseFilenameInfo(filename) {
