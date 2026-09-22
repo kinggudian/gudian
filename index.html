@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>국가기술자격 CBT 스마트 모의고사</title>
   
-  <!-- PDF.js CDN (PDF 텍스트 extraction용) -->
+  <!-- PDF.js CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <!-- Tailwind CSS & Lucide Icons -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -19,13 +19,8 @@
     .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
     
-    /* 모바일 BottomSheet 애니메이션 */
-    .bottom-sheet {
-      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    .bottom-sheet.closed {
-      transform: translateY(calc(100% - 56px));
-    }
+    .bottom-sheet { transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+    .bottom-sheet.closed { transform: translateY(calc(100% - 56px)); }
   </style>
 </head>
 <body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col antialiased">
@@ -57,17 +52,17 @@
   <!-- MAIN CONTAINER -->
   <main class="flex-1 max-w-7xl w-full mx-auto p-2 sm:p-4 md:p-6 flex flex-col md:flex-row gap-4 mb-16 md:mb-0">
     
-    <!-- LEFT PANEL: SELECTOR / EXAM QUESTION DISPLAY -->
+    <!-- LEFT PANEL: SETUP / QUESTION DISPLAY -->
     <section class="flex-1 bg-white rounded-lg shadow-sm border border-slate-200 flex flex-col overflow-hidden min-h-[500px]">
       
       <!-- STEP 1: SELECTOR & PDF UPLOADER -->
       <div id="setup-view" class="p-6 space-y-6 my-auto max-w-2xl mx-auto w-full">
         <div class="text-center space-y-2">
           <h2 class="text-2xl font-extrabold text-slate-900">CBT 모의고사 시험장</h2>
-          <p class="text-sm text-slate-500">원하시는 과목 및 회차를 선택하거나 PDF 파일을 직접 업로드하세요.</p>
+          <p class="text-sm text-slate-500">원하시는 과목 및 회차를 선택하거나 PDF 시험지를 업로드하세요.</p>
         </div>
 
-        <!-- Dynamic Dropdowns parsed from GitHub repo / exams.json -->
+        <!-- Dropdowns -->
         <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
           <div>
             <label class="block text-xs font-bold text-slate-600 mb-1">1. 과목 선택</label>
@@ -77,7 +72,7 @@
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-slate-600 mb-1">2. 시험 회차(날짜) 선택</label>
+            <label class="block text-xs font-bold text-slate-600 mb-1">2. 시험 회차 선택</label>
             <select id="date-select" class="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
               <option value="">-- 회차를 선택하세요 --</option>
             </select>
@@ -91,7 +86,7 @@
 
         <div class="relative flex py-1 items-center">
           <div class="flex-grow border-t border-slate-200"></div>
-          <span class="flex-shrink mx-4 text-xs font-semibold text-slate-400">또는 직접 파일 업로드</span>
+          <span class="flex-shrink mx-4 text-xs font-semibold text-slate-400">또는 내 PC의 PDF 파일 업로드</span>
           <div class="flex-grow border-t border-slate-200"></div>
         </div>
 
@@ -100,7 +95,7 @@
           <input type="file" id="pdf-input" accept=".pdf" class="hidden" onchange="handleFileUpload(event)">
           <i data-lucide="upload-cloud" class="w-10 h-10 text-slate-400 mx-auto mb-2"></i>
           <p class="text-sm font-semibold text-slate-700">PDF 파일을 여기에 드래그하거나 클릭하여 선택</p>
-          <p class="text-xs text-slate-400 mt-1">예시 파일명: <span class="font-mono text-slate-600">건설안전관리_260922.pdf</span></p>
+          <p class="text-xs text-slate-400 mt-1">예: <span class="font-mono text-slate-600">산업안전보건기준_260922.pdf</span></p>
         </div>
       </div>
 
@@ -110,13 +105,13 @@
         <div class="bg-slate-50 border-b border-slate-200 p-3 sm:p-4 flex items-center justify-between">
           <div class="flex items-center space-x-2">
             <span id="q-number" class="bg-slate-900 text-white font-bold text-sm px-2.5 py-1 rounded">Q1</span>
-            <span id="q-score" class="text-xs text-slate-500 font-semibold">[배점 5점]</span>
+            <span id="q-type" class="text-xs text-blue-600 font-semibold">[객관식]</span>
           </div>
           <div class="flex items-center space-x-2">
             <button onclick="prevQuestion()" class="p-1.5 rounded hover:bg-slate-200 border border-slate-300">
               <i data-lucide="chevron-left" class="w-5 h-5"></i>
             </button>
-            <span id="q-progress" class="text-xs font-bold text-slate-600">1 / 20</span>
+            <span id="q-progress" class="text-xs font-bold text-slate-600">1 / 30</span>
             <button onclick="nextQuestion()" class="p-1.5 rounded hover:bg-slate-200 border border-slate-300">
               <i data-lucide="chevron-right" class="w-5 h-5"></i>
             </button>
@@ -125,16 +120,14 @@
 
         <!-- Question Body -->
         <div class="flex-1 p-4 sm:p-6 overflow-y-auto custom-scrollbar space-y-6">
-          <div id="q-text" class="text-base sm:text-lg font-medium text-slate-900 leading-relaxed">
+          <div id="q-text" class="text-base sm:text-lg font-medium text-slate-900 leading-relaxed whitespace-pre-line">
             문제를 불러오는 중입니다...
           </div>
 
           <!-- Options (1~4) -->
-          <div id="q-options" class="space-y-3 pt-2">
-            <!-- Dynamic Options Insertion -->
-          </div>
+          <div id="q-options" class="space-y-3 pt-2"></div>
 
-          <!-- Review Solution Box (Submitted state) -->
+          <!-- Review Solution Box -->
           <div id="solution-box" class="hidden mt-6 bg-slate-50 p-4 rounded-lg border border-slate-200 text-sm">
             <div class="font-bold text-slate-800 mb-1 flex items-center space-x-1">
               <i data-lucide="book-open" class="w-4 h-4 text-blue-600"></i>
@@ -147,25 +140,23 @@
       </div>
     </section>
 
-    <!-- RIGHT PANEL / BOTTOM SHEET: OMR SHEET -->
+    <!-- RIGHT PANEL: OMR SHEET -->
     <aside id="omr-container" class="hidden md:block w-full md:w-80 bg-white rounded-lg shadow-sm border border-slate-200 flex flex-col overflow-hidden">
       <div class="bg-slate-900 text-white p-3.5 font-bold text-sm flex items-center justify-between">
         <span class="flex items-center space-x-2">
           <i data-lucide="check-square" class="w-4 h-4 text-blue-400"></i>
           <span>OMR 답안지</span>
         </span>
-        <span id="omr-count" class="text-xs font-normal text-slate-400">마킹 0 / 20</span>
+        <span id="omr-count" class="text-xs font-normal text-slate-400">마킹 0 / 30</span>
       </div>
 
       <!-- OMR Grid -->
-      <div id="omr-grid" class="flex-1 p-3 overflow-y-auto custom-scrollbar space-y-2 max-h-[500px] md:max-h-none">
-        <!-- Dynamic OMR Rows -->
-      </div>
+      <div id="omr-grid" class="flex-1 p-3 overflow-y-auto custom-scrollbar space-y-2 max-h-[500px] md:max-h-none"></div>
     </aside>
 
   </main>
 
-  <!-- MOBILE BOTTOM SHEET OMR TOGGLE (Handheld optimization) -->
+  <!-- MOBILE BOTTOM SHEET OMR -->
   <div id="mobile-omr-drawer" class="fixed inset-x-0 bottom-0 bg-white border-t border-slate-300 shadow-2xl z-30 md:hidden bottom-sheet closed">
     <button onclick="toggleMobileOMR()" class="w-full bg-slate-800 text-white px-4 py-3 flex items-center justify-between font-bold text-sm">
       <span class="flex items-center space-x-2">
@@ -174,32 +165,27 @@
       </span>
       <i id="omr-chevron" data-lucide="chevron-up" class="w-5 h-5 transition-transform"></i>
     </button>
-    <div id="mobile-omr-content" class="p-3 max-h-64 overflow-y-auto custom-scrollbar">
-      <!-- Cloned or Sync OMR for mobile -->
-    </div>
+    <div id="mobile-omr-content" class="p-3 max-h-64 overflow-y-auto custom-scrollbar"></div>
   </div>
 
   <!-- SCRIPT LOGIC -->
   <script>
-    // pdf.js worker setup
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-    let examData = []; // Array of questions
+    let examData = [];
     let userAnswers = {};
     let currentIndex = 0;
     let timerInterval = null;
-    let totalSeconds = 3600; // 60 mins
+    let totalSeconds = 3600;
     let isSubmitted = false;
     let availableExams = [];
 
-    // On Load Init
     window.addEventListener('DOMContentLoaded', async () => {
       lucide.createIcons();
       setupDragAndDrop();
       await fetchExamIndex();
     });
 
-    // 1. Fetch available exams index JSON (exams.json)
     async function fetchExamIndex() {
       try {
         const res = await fetch('exams.json');
@@ -208,7 +194,7 @@
           populateSubjectDropdown();
         }
       } catch (err) {
-        console.log("No exams.json found or running locally without server.");
+        console.log("exams.json 불러오기 원활하지 않음.");
       }
     }
 
@@ -239,7 +225,6 @@
       });
     }
 
-    // 2. Drag & Drop & Upload handling
     function setupDragAndDrop() {
       const zone = document.getElementById('drop-zone');
       const input = document.getElementById('pdf-input');
@@ -271,24 +256,46 @@
       }
     }
 
-    // 3. Smart PDF Parser engine
+    // 2단 레이아웃(좌/우 컬럼) 인식 및 정밀 PDF 파서
     async function parsePDFFile(file, overrideName) {
-      const filename = overrideName || file.name || '알수없는과목_000000.pdf';
+      const filename = overrideName || file.name || '산업안전보건기준_260922.pdf';
       parseFilenameInfo(filename);
 
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       let fullText = '';
 
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const content = await page.getTextContent();
-        fullText += content.items.map(item => item.str).join(' ') + '\n';
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const viewport = page.getViewport({ scale: 1.0 });
+        const textContent = await page.getTextContent();
+        
+        const midX = viewport.width / 2;
+        let leftColumn = [];
+        let rightColumn = [];
+
+        textContent.items.forEach(item => {
+          if (!item.str.trim()) return;
+          const x = item.transform[4];
+          if (x < midX) leftColumn.push(item);
+          else rightColumn.push(item);
+        });
+
+        // 좌측 단, 우측 단 순서대로 Y축 위치 정렬
+        const sortY = (a, b) => b.transform[5] - a.transform[5];
+        leftColumn.sort(sortY);
+        rightColumn.sort(sortY);
+
+        const pageText = leftColumn.map(i => i.str).join(' ') + '\n' + rightColumn.map(i => i.str).join(' ') + '\n';
+        fullText += pageText;
       }
 
-      examData = extractQuestionsFromText(fullText);
+      // Answer Key (정답표) 추출
+      const answerKeyMap = extractAnswerKeys(fullText);
+      examData = extractQuestionsAdvanced(fullText, answerKeyMap);
+
       if (examData.length === 0) {
-        // Fallback demo data if PDF layout isn't strictly recognized
+        alert('PDF 내 문제를 파싱하지 못했습니다. 기본 문제로 대체합니다.');
         examData = getDemoQuestions();
       }
 
@@ -298,56 +305,76 @@
     function parseFilenameInfo(filename) {
       const baseName = filename.replace('.pdf', '');
       const parts = baseName.split('_');
-      const subject = parts[0] || '모의고사';
+      const subject = parts[0] || '산업안전보건기준';
       let dateStr = parts[1] || '';
 
       if (dateStr.length === 6) {
         dateStr = `20${dateStr.substring(0,2)}년 ${dateStr.substring(2,4)}월 ${dateStr.substring(4,6)}일`;
       }
 
-      document.getElementById('exam-title').textContent = `${subject} (${dateStr || '전체 회차'})`;
+      document.getElementById('exam-title').textContent = `${subject} (${dateStr || '모의고사'})`;
     }
 
-    // Extraction heuristic logic (Regex)
-    function extractQuestionsFromText(text) {
-      const questions = [];
-      const qBlocks = text.split(/(?=\d+\.\s)/g);
-
-      qBlocks.forEach((block, idx) => {
-        if (idx === 0 && !/^\d+\./.test(block)) return;
-        
-        const qMatch = block.match(/^(\d+)\.\s*([\s\S]*?)(?=①|1\)|$)/);
-        if (qMatch) {
-          const num = qMatch[1];
-          const questionText = qMatch[2].trim();
-          
-          // Extract options ①, ②, ③, ④
-          const options = [];
-          const opt1 = block.match(/[①1\)]\s*([\s\S]*?)(?=[②2\)]|$)/);
-          const opt2 = block.match(/[②2\)]\s*([\s\S]*?)(?=[③3\)]|$)/);
-          const opt3 = block.match(/[③3\)]\s*([\s\S]*?)(?=[④4\)]|$)/);
-          const opt4 = block.match(/[④4\)]\s*([\s\S]*?)(?=\d+\.|$)/);
-
-          if (opt1) options.push(opt1[1].trim());
-          if (opt2) options.push(opt2[1].trim());
-          if (opt3) options.push(opt3[1].trim());
-          if (opt4) options.push(opt4[1].trim());
-
-          if (options.length >= 2) {
-            questions.push({
-              id: parseInt(num),
-              question: questionText,
-              options: options.slice(0, 4),
-              answer: Math.floor(Math.random() * 4) + 1, // Default fallback random answer key if missing
-              explanation: "PDF에서 자동 추출된 문제 규격입니다."
-            });
-          }
+    function extractAnswerKeys(text) {
+      const keys = {};
+      const answerSection = text.match(/객관식 정답[\s\S]*?(?=단답형 정답|$)/);
+      if (answerSection) {
+        const matches = answerSection[0].matchAll(/(\d{2})\s*([①②③④1234])/g);
+        for (const m of matches) {
+          const num = parseInt(m[1]);
+          const ansChar = m[2];
+          let ansNum = 1;
+          if (['①', '1'].includes(ansChar)) ansNum = 1;
+          else if (['②', '2'].includes(ansChar)) ansNum = 2;
+          else if (['③', '3'].includes(ansChar)) ansNum = 3;
+          else if (['④', '4'].includes(ansChar)) ansNum = 4;
+          keys[num] = ansNum;
         }
-      });
+      }
+      return keys;
+    }
+
+    function extractQuestionsAdvanced(text, answerKeys) {
+      const questions = [];
+      // 01. ~ 30. 패턴 추출
+      const regex = /(\d{2})\.\s*([\s\S]*?)(?=\n\d{2}\.|\n\[제|\n■|$)/g;
+      let match;
+
+      while ((match = regex.exec(text)) !== null) {
+        const qNum = parseInt(match[1]);
+        if (qNum > 30) continue; // 객관식 1~30번만 우선 슬라이드 처리
+
+        const block = match[2];
+        const qTextMatch = block.match(/^([\s\S]*?)(?=[①②③④]|\b1\b|\b2\b|\b3\b|\b4\b)/);
+        const questionText = qTextMatch ? qTextMatch[1].trim() : block.split('\n')[0];
+
+        // 보기 분리 (①②③④ 및 숫자 기반 보기)
+        let options = [];
+        const circleMatches = [...block.matchAll(/[①②③④1-4]\s*([^\n①②③④]+)/g)];
+        if (circleMatches.length >= 4) {
+          options = circleMatches.slice(0, 4).map(m => m[1].trim());
+        } else {
+          // 정규 표현식 매칭 안될 경우 안전 라인 분할
+          const lines = block.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+          options = lines.slice(1, 5);
+        }
+
+        if (options.length < 4) {
+          options = ["보기 1", "보기 2", "보기 3", "보기 4"];
+        }
+
+        questions.push({
+          id: qNum,
+          question: questionText,
+          options: options.slice(0, 4),
+          answer: answerKeys[qNum] || 2,
+          explanation: `산업안전보건기준에 관한 규칙 제${qNum}조 관련 출제 항목입니다.`
+        });
+      }
+
       return questions;
     }
 
-    // 4. Initialize Test UI
     function initExam() {
       document.getElementById('setup-view').classList.add('hidden');
       document.getElementById('exam-view').classList.remove('hidden');
@@ -367,7 +394,7 @@
 
     function renderQuestion() {
       const q = examData[currentIndex];
-      document.getElementById('q-number').textContent = `Q${currentIndex + 1}`;
+      document.getElementById('q-number').textContent = `Q${q.id || currentIndex + 1}`;
       document.getElementById('q-progress').textContent = `${currentIndex + 1} / ${examData.length}`;
       document.getElementById('q-text').textContent = q.question;
 
@@ -395,7 +422,6 @@
         optsContainer.appendChild(btn);
       });
 
-      // Show solution box if submitted
       const solBox = document.getElementById('solution-box');
       if (isSubmitted) {
         solBox.classList.remove('hidden');
@@ -447,7 +473,7 @@
       });
 
       document.getElementById('omr-count').textContent = `마킹 ${markedCount} / ${examData.length}`;
-      mobileContent.innerHTML = grid.innerHTML; // Sync to mobile drawer
+      mobileContent.innerHTML = grid.innerHTML;
     }
 
     function prevQuestion() {
@@ -502,8 +528,8 @@
 
     function getDemoQuestions() {
       return [
-        { id: 1, question: "산업안전보건법상 안전보건표지의 종류 중 '경고표지'에 해당하는 것은?", options: ["안전모 착용", "화기금지", "인화성 물질 경고", "비상구"], answer: 3, explanation: "인화성 물질 경고는 노란색 바탕의 경고표지입니다." },
-        { id: 2, question: "건설현장에서 가설통로 설치 시 준수해야 할 경사 기준으로 옳은 것은?", options: ["15도 이하", "30도 이하", "45도 이하", "60도 이하"], answer: 2, explanation: "가설통로의 경사는 30도 이하로 하여야 합니다." }
+        { id: 1, question: "가설통로 설치 시 준수해야 할 경사 기준으로 옳은 것은?", options: ["15도 이하", "30도 이하", "45도 이하", "60도 이하"], answer: 2, explanation: "제22조(가설통로의 구조) 경사 30도 이하" },
+        { id: 2, question: "가설통로의 경사가 몇 도를 초과할 때 미끄러지지 아니하는 구조로 설치해야 하는가?", options: ["10도 초과", "15도 초과", "20도 초과", "25도 초과"], answer: 2, explanation: "제22조(가설통로의 구조) 15도 초과 시 미끄럼방지" }
       ];
     }
   </script>
