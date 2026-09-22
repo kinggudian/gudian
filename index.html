@@ -641,10 +641,16 @@
         let numButtonsHtml = '';
         [1, 2, 3, 4].forEach(num => {
           const isSel = userAnswers[idx] === num;
+          let chipClass = 'bg-slate-200 text-slate-600';
+          if (isSel) {
+            if (isSubmitted) {
+              chipClass = num === q.answer ? 'bg-emerald-500 text-white font-bold' : 'bg-red-500 text-white font-bold';
+            } else {
+              chipClass = 'bg-slate-900 text-white font-bold';
+            }
+          }
           numButtonsHtml += `
-            <span class="w-6 h-6 rounded-full flex items-center justify-center font-mono ${
-              isSel ? 'bg-slate-900 text-white font-bold' : 'bg-slate-200 text-slate-600'
-            }">${num}</span>
+            <span class="w-6 h-6 rounded-full flex items-center justify-center font-mono ${chipClass}">${num}</span>
           `;
         });
 
