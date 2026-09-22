@@ -297,24 +297,20 @@
         const page = await pdf.getPage(pageNum);
         const viewport = page.getViewport({ scale: 1.0 });
         const textContent = await page.getTextContent();
-        
+
+        // 시험지가 2단(좌/우) 구성이므로, 컬럼별로 나눈 뒤 각 컬럼 안에서
+        // 줄바꿈을 복원해야 문제 단위 경계가 올바르게 유지됩니다.
         const midX = viewport.width / 2;
-        let leftColumn = [];
-        let rightColumn = [];
+        const leftItems = [];
+        const rightItems = [];
 
         textContent.items.forEach(item => {
           if (!item.str.trim()) return;
           const x = item.transform[4];
-          if (x < midX) leftColumn.push(item);
-          else rightColumn.push(item);
+          (x < midX ? leftItems : rightItems).push(item);
         });
 
-        const sortY = (a, b) => b.transform[5] - a.transform[5];
-        leftColumn.sort(sortY);
-        rightColumn.sort(sortY);
-
-        const pageText = leftColumn.map(i => i.str).join(' ') + '\n' + rightColumn.map(i => i.str).join(' ') + '\n';
-        fullText += pageText;
+        fullText += itemsToLines(leftItems) + '\n' + itemsToLines(rightItems) + '\n';
       }
 
       const answerKeyMap = extractAnswerKeys(fullText);
@@ -326,6 +322,36 @@
       }
 
       initExam();
+    }
+
+    // 같은 컬럼에 속한 텍스트 조각들을 y좌표 기준으로 묶어
+    // 원본 문서의 줄바꿈(문제 하나 = 여러 줄) 구조를 복원합니다.
+    function itemsToLines(items) {
+      const sorted = [...items].sort((a, b) => {
+        const dy = b.transform[5] - a.transform[5];
+        if (Math.abs(dy) > 2.5) return dy;
+        return a.transform[4] - b.transform[4];
+      });
+
+      const lines = [];
+      let currentLine = [];
+      let lastY = null;
+
+      sorted.forEach(item => {
+        const y = item.transform[5];
+        if (lastY !== null && Math.abs(lastY - y) > 2.5) {
+          lines.push(currentLine.join(''));
+          currentLine = [];
+        }
+        currentLine.push(item.str);
+        lastY = y;
+      });
+      if (currentLine.length) lines.push(currentLine.join(''));
+
+      // 이 PDF는 한글 글자 하나하나가 별도의 텍스트 조각으로 저장되어 있고
+      // 실제 공백은 이미 별도의 " " 조각으로 포함되어 있으므로, 조각 사이에
+      // 공백을 추가로 끼워 넣지 않고 그대로 이어 붙여야 원문 그대로 복원됩니다.
+      return lines.join('\n');
     }
 
     function parseFilenameInfo(filename) {
@@ -343,58 +369,58 @@
 
     function extractAnswerKeys(text) {
       const keys = {};
-      const answerSection = text.match(/객관식 정답[\s\S]*?(?=단답형 정답|$)/);
-      if (answerSection) {
-        const matches = answerSection[0].matchAll(/(\d{2})\s*([①②③④1234])/g);
-        for (const m of matches) {
-          const num = parseInt(m[1]);
-          const ansChar = m[2];
-          let ansNum = 1;
-          if (['①', '1'].includes(ansChar)) ansNum = 1;
-          else if (['②', '2'].includes(ansChar)) ansNum = 2;
-          else if (['③', '3'].includes(ansChar)) ansNum = 3;
-          else if (['④', '4'].includes(ansChar)) ansNum = 4;
-          keys[num] = ansNum;
-        }
+      // PDF 추출 텍스트에는 단어 사이 공백이 없을 수 있으므로(예: "객관식정답")
+      // \s*로 두어 공백이 있든 없든 매칭되도록 합니다.
+      const startIdx = text.search(/객관식\s*정답/);
+      if (startIdx === -1) return keys;
+
+      // "단답형 정답" 구간까지만 자르면, 표가 2단으로 배치되어 있을 때
+      // 오른쪽 컬럼(16~30번)이 잘려나가는 경우가 있어 문서 끝까지 검색합니다.
+      // 단답형 정답은 원문자(①②③④)를 쓰지 않으므로 1~30 범위 필터만으로 충분합니다.
+      const section = text.slice(startIdx);
+      const matches = section.matchAll(/(\d{2})\s*([①②③④])/g);
+      const circleToNum = { '①': 1, '②': 2, '③': 3, '④': 4 };
+      for (const m of matches) {
+        const num = parseInt(m[1], 10);
+        if (num >= 1 && num <= 30 && !(num in keys)) keys[num] = circleToNum[m[2]];
       }
       return keys;
     }
 
     function extractQuestionsAdvanced(text, answerKeys) {
       const questions = [];
-      const regex = /(\d{2})\.\s*([\s\S]*?)(?=\n\d{2}\.|\n\[제|\n■|$)/g;
+      const seen = new Set();
+      const regex = /(?:^|\n)(\d{2})\.\s*([\s\S]*?)(?=\n\d{2}\.|\n\[제|\n■|$)/g;
       let match;
 
       while ((match = regex.exec(text)) !== null) {
-        const qNum = parseInt(match[1]);
-        if (qNum > 30) continue;
+        const qNum = parseInt(match[1], 10);
+        if (qNum < 1 || qNum > 30 || seen.has(qNum)) continue;
 
         const block = match[2];
-        const qTextMatch = block.match(/^([\s\S]*?)(?=[①②③④]|\b1\b|\b2\b|\b3\b|\b4\b)/);
-        const questionText = qTextMatch ? qTextMatch[1].trim() : block.split('\n')[0];
+        // 보기 번호(①②③④)만 기준으로 삼아야 합니다. 일반 숫자 1~4까지 포함하면
+        // 문제 지문 속 "15도", "1.5m" 같은 숫자를 보기로 오인식하게 됩니다.
+        const qTextMatch = block.match(/^([\s\S]*?)(?=[①②③④])/);
+        const questionText = (qTextMatch ? qTextMatch[1] : block.split('\n')[0]).replace(/\s+/g, ' ').trim();
+        if (!questionText) continue;
 
-        let options = [];
-        const circleMatches = [...block.matchAll(/[①②③④1-4]\s*([^\n①②③④]+)/g)];
-        if (circleMatches.length >= 4) {
-          options = circleMatches.slice(0, 4).map(m => m[1].trim());
-        } else {
-          const lines = block.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-          options = lines.slice(1, 5);
-        }
+        const circleMatches = [...block.matchAll(/[①②③④]\s*([^\n①②③④]+)/g)];
+        if (circleMatches.length < 4) continue; // 보기 4개를 온전히 찾지 못하면 해당 문제는 건너뜁니다.
 
-        if (options.length < 4) {
-          options = ["보기 1", "보기 2", "보기 3", "보기 4"];
-        }
+        const options = circleMatches.slice(0, 4).map(m => m[1].replace(/\s+/g, ' ').trim());
+        if (options.some(opt => !opt)) continue;
 
+        seen.add(qNum);
         questions.push({
           id: qNum,
           question: questionText,
-          options: options.slice(0, 4),
-          answer: answerKeys[qNum] || 2,
+          options,
+          answer: answerKeys[qNum] || null,
           explanation: `산업안전보건기준에 관한 규칙 제${qNum}조 관련 출제 항목입니다.`
         });
       }
 
+      questions.sort((a, b) => a.id - b.id);
       return questions;
     }
 
@@ -448,7 +474,9 @@
       const solBox = document.getElementById('solution-box');
       if (isSubmitted) {
         solBox.classList.remove('hidden');
-        document.getElementById('correct-ans').textContent = `정답: ${getCircleNum(q.answer)}`;
+        document.getElementById('correct-ans').textContent = q.answer
+          ? `정답: ${getCircleNum(q.answer)}`
+          : '정답: 정보 없음 (PDF에서 정답을 찾지 못했습니다)';
         document.getElementById('explanation-text').textContent = q.explanation || "해설이 없습니다.";
       } else {
         solBox.classList.add('hidden');
