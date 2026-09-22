@@ -35,7 +35,6 @@
         </h1>
       </div>
 
-      <!-- TIMER & ACTION BUTTONS -->
       <div class="flex items-center space-x-2 sm:space-x-4">
         <div id="timer-box" class="hidden items-center bg-slate-800 border border-slate-700 px-3 py-1 rounded text-amber-400 font-mono text-sm sm:text-base font-bold">
           <i data-lucide="clock" class="w-4 h-4 mr-1.5 animate-pulse"></i>
@@ -67,7 +66,7 @@
           <div>
             <label class="block text-xs font-bold text-slate-600 mb-1">1. 과목 선택</label>
             <select id="subject-select" onchange="onSubjectChange()" class="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-              <option value="">-- 과목을 선택하세요 --</option>
+              <option value="">-- 목록 불러오는 중... --</option>
             </select>
           </div>
 
@@ -124,10 +123,8 @@
             문제를 불러오는 중입니다...
           </div>
 
-          <!-- Options (1~4) -->
           <div id="q-options" class="space-y-3 pt-2"></div>
 
-          <!-- Review Solution Box -->
           <div id="solution-box" class="hidden mt-6 bg-slate-50 p-4 rounded-lg border border-slate-200 text-sm">
             <div class="font-bold text-slate-800 mb-1 flex items-center space-x-1">
               <i data-lucide="book-open" class="w-4 h-4 text-blue-600"></i>
@@ -150,7 +147,6 @@
         <span id="omr-count" class="text-xs font-normal text-slate-400">마킹 0 / 30</span>
       </div>
 
-      <!-- OMR Grid -->
       <div id="omr-grid" class="flex-1 p-3 overflow-y-auto custom-scrollbar space-y-2 max-h-[500px] md:max-h-none"></div>
     </aside>
 
@@ -168,7 +164,6 @@
     <div id="mobile-omr-content" class="p-3 max-h-64 overflow-y-auto custom-scrollbar"></div>
   </div>
 
-  <!-- SCRIPT LOGIC -->
   <script>
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
@@ -186,22 +181,39 @@
       await fetchExamIndex();
     });
 
+    // exams.json, EXAM.json 등 대소문자 캐시 방지 시도
     async function fetchExamIndex() {
-      try {
-        const res = await fetch('exams.json');
-        if (res.ok) {
-          availableExams = await res.json();
-          populateSubjectDropdown();
+      const possiblePaths = ['exams.json', 'EXAM.json', 'Exams.json'];
+      let loaded = false;
+
+      for (const path of possiblePaths) {
+        try {
+          // 캐시 방지를 위해 timestamp 붙임
+          const res = await fetch(`${path}?v=${new Date().getTime()}`);
+          if (res.ok) {
+            availableExams = await res.json();
+            populateSubjectDropdown();
+            loaded = true;
+            break;
+          }
+        } catch (e) {
+          console.warn(`${path} 탐색 실패`);
         }
-      } catch (err) {
-        console.log("exams.json 불러오기 원활하지 않음.");
+      }
+
+      if (!loaded) {
+        document.getElementById('subject-select').innerHTML = '<option value="">-- 등록된 시험이 없습니다 (PDF 업로드 필요) --</option>';
       }
     }
 
     function populateSubjectDropdown() {
       const subjectSelect = document.getElementById('subject-select');
+      if (!availableExams || availableExams.length === 0) {
+        subjectSelect.innerHTML = '<option value="">-- 등록된 과목이 없습니다 --</option>';
+        return;
+      }
+
       const subjects = [...new Set(availableExams.map(item => item.subject))];
-      
       subjectSelect.innerHTML = '<option value="">-- 과목을 선택하세요 --</option>';
       subjects.forEach(sub => {
         const opt = document.createElement('option');
@@ -248,7 +260,7 @@
       if (!path) return alert('과목과 회차를 먼저 선택해 주세요.');
       
       try {
-        const res = await fetch(path);
+        const res = await fetch(`${path}?v=${new Date().getTime()}`);
         const blob = await res.blob();
         parsePDFFile(blob, path.split('/').pop());
       } catch (e) {
@@ -256,7 +268,6 @@
       }
     }
 
-    // 2단 레이아웃(좌/우 컬럼) 인식 및 정밀 PDF 파서
     async function parsePDFFile(file, overrideName) {
       const filename = overrideName || file.name || '산업안전보건기준_260922.pdf';
       parseFilenameInfo(filename);
@@ -281,7 +292,6 @@
           else rightColumn.push(item);
         });
 
-        // 좌측 단, 우측 단 순서대로 Y축 위치 정렬
         const sortY = (a, b) => b.transform[5] - a.transform[5];
         leftColumn.sort(sortY);
         rightColumn.sort(sortY);
@@ -290,12 +300,11 @@
         fullText += pageText;
       }
 
-      // Answer Key (정답표) 추출
       const answerKeyMap = extractAnswerKeys(fullText);
       examData = extractQuestionsAdvanced(fullText, answerKeyMap);
 
       if (examData.length === 0) {
-        alert('PDF 내 문제를 파싱하지 못했습니다. 기본 문제로 대체합니다.');
+        alert('PDF 내 문제를 파싱하지 못하여 데모 문제로 대체합니다.');
         examData = getDemoQuestions();
       }
 
@@ -336,25 +345,22 @@
 
     function extractQuestionsAdvanced(text, answerKeys) {
       const questions = [];
-      // 01. ~ 30. 패턴 추출
       const regex = /(\d{2})\.\s*([\s\S]*?)(?=\n\d{2}\.|\n\[제|\n■|$)/g;
       let match;
 
       while ((match = regex.exec(text)) !== null) {
         const qNum = parseInt(match[1]);
-        if (qNum > 30) continue; // 객관식 1~30번만 우선 슬라이드 처리
+        if (qNum > 30) continue;
 
         const block = match[2];
         const qTextMatch = block.match(/^([\s\S]*?)(?=[①②③④]|\b1\b|\b2\b|\b3\b|\b4\b)/);
         const questionText = qTextMatch ? qTextMatch[1].trim() : block.split('\n')[0];
 
-        // 보기 분리 (①②③④ 및 숫자 기반 보기)
         let options = [];
         const circleMatches = [...block.matchAll(/[①②③④1-4]\s*([^\n①②③④]+)/g)];
         if (circleMatches.length >= 4) {
           options = circleMatches.slice(0, 4).map(m => m[1].trim());
         } else {
-          // 정규 표현식 매칭 안될 경우 안전 라인 분할
           const lines = block.split('\n').map(l => l.trim()).filter(l => l.length > 0);
           options = lines.slice(1, 5);
         }
@@ -528,8 +534,7 @@
 
     function getDemoQuestions() {
       return [
-        { id: 1, question: "가설통로 설치 시 준수해야 할 경사 기준으로 옳은 것은?", options: ["15도 이하", "30도 이하", "45도 이하", "60도 이하"], answer: 2, explanation: "제22조(가설통로의 구조) 경사 30도 이하" },
-        { id: 2, question: "가설통로의 경사가 몇 도를 초과할 때 미끄러지지 아니하는 구조로 설치해야 하는가?", options: ["10도 초과", "15도 초과", "20도 초과", "25도 초과"], answer: 2, explanation: "제22조(가설통로의 구조) 15도 초과 시 미끄럼방지" }
+        { id: 1, question: "가설통로 설치 시 준수해야 할 경사 기준으로 옳은 것은?", options: ["15도 이하", "30도 이하", "45도 이하", "60도 이하"], answer: 2, explanation: "제22조(가설통로의 구조) 경사 30도 이하" }
       ];
     }
   </script>
