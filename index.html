@@ -21,6 +21,11 @@
     
     .bottom-sheet { transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
     .bottom-sheet.closed { transform: translateY(calc(100% - 56px)); }
+
+    /* 좁은 화면에서 문제 풀이 중(타이머·제출 버튼 표시 시)에는 헤더 문구를 숨겨 겹침을 방지 */
+    @media (max-width: 639px) {
+      #header-tagline.exam-active-hide { display: none; }
+    }
   </style>
 </head>
 <body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col antialiased">
@@ -30,8 +35,8 @@
     <div class="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
       <div class="flex items-center space-x-3">
         <span class="bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded">CBT TEST</span>
-        <span class="hidden sm:inline text-xs text-slate-400">사랑하는 수현이를 위해 남편이만듬</span>
-        <h1 id="exam-title" class="text-base sm:text-lg font-bold truncate max-w-[180px] sm:max-w-xs md:max-w-md">
+        <span id="header-tagline" class="text-[10px] sm:text-xs text-slate-400 truncate max-w-[110px] sm:max-w-none">사랑하는 수현이를 위해 남편이만듬</span>
+        <h1 id="exam-title" class="text-base sm:text-lg font-bold truncate max-w-[110px] sm:max-w-xs md:max-w-md">
           과목/회차를 선택해주세요
         </h1>
       </div>
@@ -616,6 +621,8 @@
       document.getElementById('timer-box').classList.remove('hidden');
       document.getElementById('timer-box').classList.add('flex');
       document.getElementById('submit-btn').classList.remove('hidden');
+      // 좁은 화면에서는 타이머·제출 버튼과 공간이 겹치므로 문제 풀이 중엔 숨깁니다.
+      document.getElementById('header-tagline').classList.add('exam-active-hide');
 
       currentIndex = 0;
       userAnswers = {};
@@ -793,6 +800,7 @@
       document.getElementById('timer-box').classList.add('hidden');
       document.getElementById('timer-box').classList.remove('flex');
       document.getElementById('submit-btn').classList.add('hidden');
+      document.getElementById('header-tagline').classList.remove('exam-active-hide');
       document.getElementById('result-view').classList.remove('hidden');
 
       const stats = computeResultStats();
@@ -847,6 +855,7 @@
       document.getElementById('omr-container').classList.add('hidden');
       document.getElementById('setup-view').classList.remove('hidden');
       document.getElementById('exam-title').textContent = '과목/회차를 선택해주세요';
+      document.getElementById('header-tagline').classList.remove('exam-active-hide');
     }
 
     function toggleMobileOMR() {
