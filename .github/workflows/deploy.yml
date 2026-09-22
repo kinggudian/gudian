@@ -37,14 +37,17 @@ jobs:
                 const parts = file.replace(".pdf", "").split("_");
                 const subject = parts[0] || "산업안전보건기준";
                 const dateRaw = parts[1] || "";
-                const formattedDate = dateRaw.length === 6 
-                  ? `20${dateRaw.substring(0,2)}-${dateRaw.substring(2,4)}-${dateRaw.substring(4,6)}` 
+                const roundRaw = parts[2] || "";
+                const formattedDate = dateRaw.length === 6
+                  ? `20${dateRaw.substring(0,2)}-${dateRaw.substring(2,4)}-${dateRaw.substring(4,6)}`
                   : "모의고사";
-                
+                // 같은 날짜에 여러 회차가 있으면(파일명 끝의 _N) 드롭다운에서 구분되도록 회차를 표시
+                const roundSuffix = /^\d+$/.test(roundRaw) ? ` (${roundRaw}회차)` : "";
+
                 pdfList.push({
                   filename: file,
                   subject: subject,
-                  date: formattedDate,
+                  date: formattedDate + roundSuffix,
                   path: `pdfs/${file}`
                 });
               }

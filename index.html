@@ -325,7 +325,8 @@
       filtered.forEach(item => {
         const opt = document.createElement('option');
         opt.value = item.path;
-        opt.textContent = `${item.date} 회차`;
+        // exams.json의 date 값에 이미 "(N회차)"가 포함될 수 있어 중복 표기를 피합니다.
+        opt.textContent = /회차/.test(item.date) ? item.date : `${item.date} 회차`;
         dateSelect.appendChild(opt);
       });
     }
@@ -603,7 +604,9 @@
           question: questionText,
           options,
           answer: answerKeys[qNum] || null,
-          explanation: `산업안전보건기준에 관한 규칙 제${qNum}조 관련 출제 항목입니다.`
+          // PDF에서 실제 해설을 추출하는 로직이 없으므로, 문항 번호를 조문 번호처럼
+          // 꾸며내지 않고 정직하게 "해설 없음" 상태로 둡니다.
+          explanation: null
         });
       }
 
