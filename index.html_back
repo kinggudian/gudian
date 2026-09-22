@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>우리 강아지 짖음 시간 확인하기</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="app-container">
+
+  <!-- ============================================================ -->
+  <!-- 화면 1: 랜딩 페이지 -->
+  <!-- PRD 대응: 유저 플로우 1단계 / 화면 구성 "랜딩 페이지" -->
+  <!-- ============================================================ -->
+  <section id="screen-landing" class="screen active">
+    <div class="card">
+      <h1>반려견 짖음 때문에<br/>이웃과 갈등을 겪은 적 있나요?</h1>
+      <p class="lead">
+        출퇴근 시간, 혼자 남은 반려견의 분리불안으로 인한 짖음은
+        생각보다 흔한 문제입니다.
+      </p>
+      <div class="fact-box">
+        <p><strong>공식 근거</strong></p>
+        <p>
+          「공동주택 층간소음의 범위와 기준에 관한 규칙」 제2조는 층간소음을
+          직접충격 소음·공기전달 소음으로만 정의하고 있어, 반려동물 소음은
+          이 범위에 포함되지 않습니다. 이에 따라 관리사무소·환경부 이웃사이센터가
+          반려동물 소음 민원에 개입할 공식 근거가 없다는 점이 정부24·이웃사이센터
+          서비스 안내를 통해 확인됩니다.
+        </p>
+      </div>
+      <button class="btn-primary" id="btn-start">내 강아지 짖음 시간 확인하기</button>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 화면 2: 입력 폼 페이지 -->
+  <!-- PRD 대응: 유저 플로우 2단계 / 화면 구성 "입력 폼 페이지" -->
+  <!-- ============================================================ -->
+  <section id="screen-input" class="screen">
+    <div class="card">
+      <h2>지난 1주일, 우리 강아지는 언제 짖었나요?</h2>
+      <p class="sub">기억나는 시간대에 모두 체크해주세요. (중복 가능)</p>
+
+      <div class="table-wrap">
+        <table id="bark-grid">
+          <thead>
+            <tr>
+              <th>시간대</th>
+              <th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th>토</th><th>일</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- JS로 생성됨 -->
+          </tbody>
+        </table>
+      </div>
+
+      <div class="form-group">
+        <label>짖는 소리 녹음 파일 (선택)</label>
+        <input type="file" id="audio-upload" accept="audio/*" />
+        <p class="hint">※ 이번 MVP에서는 파일 첨부만 되며, 자동 음성 분석은 제공되지 않습니다.</p>
+      </div>
+
+      <div class="form-group">
+        <label for="residence-type">거주 형태</label>
+        <select id="residence-type" required>
+          <option value="">선택해주세요</option>
+          <option value="아파트">아파트</option>
+          <option value="오피스텔">오피스텔</option>
+          <option value="빌라">빌라</option>
+          <option value="기타">기타</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="household-type">가구 형태</label>
+        <select id="household-type" required>
+          <option value="">선택해주세요</option>
+          <option value="1인가구">1인가구</option>
+          <option value="맞벌이 부부">맞벌이 부부</option>
+          <option value="기타">기타</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="pet-breed">반려견 견종</label>
+        <input type="text" id="pet-breed" placeholder="예: 포메라니안" required />
+      </div>
+
+      <div class="form-group">
+        <label for="pet-size">반려견 크기</label>
+        <select id="pet-size" required>
+          <option value="">선택해주세요</option>
+          <option value="소형">소형견</option>
+          <option value="중형">중형견</option>
+          <option value="대형">대형견</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>이웃 민원을 받은 경험이 있나요?</label>
+        <div class="radio-row">
+          <label><input type="radio" name="complaint" value="예" required /> 예</label>
+          <label><input type="radio" name="complaint" value="아니오" /> 아니오</label>
+        </div>
+      </div>
+
+      <div class="consent-box">
+        <label class="consent-label">
+          <input type="checkbox" id="consent-input" required />
+          입력하신 거주형태·가구형태·반려견 정보·짖음 시간 기록을
+          서비스 검증 및 통계 분석 목적으로 수집하는 것에 동의합니다.
+        </label>
+      </div>
+
+      <button class="btn-primary" id="btn-submit-input" disabled>결과 확인하기</button>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 화면 3: 결과 확인 페이지 (AI 처리 → 결과 표시) -->
+  <!-- PRD 대응: 유저 플로우 3단계 / 화면 구성 "결과 확인 페이지" -->
+  <!-- ============================================================ -->
+  <section id="screen-result" class="screen">
+    <div class="card">
+
+      <div id="result-input-summary" class="summary-box">
+        <!-- 사용자 입력 요약: JS로 채워짐 -->
+      </div>
+
+      <div id="result-loading" class="loading-box">
+        <div class="spinner"></div>
+        <p>짖음 시간대를 정리하고 있어요...</p>
+      </div>
+
+      <div id="result-output" class="result-output hidden">
+        <h2>시간대별 짖음 빈도</h2>
+        <div id="bark-chart" class="chart"></div>
+
+        <p id="ai-summary-sentence" class="ai-sentence"></p>
+
+        <div class="disclaimer-box">
+          이 결과는 진단이 아니며 입력하신 데이터의 단순 집계입니다.
+          반려견의 분리불안 여부·원인·심각도를 판단하지 않으며,
+          음성·향 개입의 효과나 안전성, 이웃 갈등 발생 가능성을
+          예측하거나 단정하지 않습니다.
+        </div>
+
+        <div class="scenario-card">
+          <h3>이런 해결 방식이 검토되고 있어요</h3>
+          <p>
+            짖음이 잦은 시간대를 미리 예측해, 그 시간에 맞춰 주인의 목소리를
+            재생하고 간헐적으로 주인이 평소 쓰는 향수를 함께 분사하는 방식이
+            검토되고 있습니다.
+          </p>
+        </div>
+
+        <button class="btn-primary" id="btn-goto-feedback">다음으로</button>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 화면 4: 피드백 설문 페이지 -->
+  <!-- PRD 대응: 유저 플로우 4단계 / 화면 구성 "피드백 설문 페이지" -->
+  <!-- ============================================================ -->
+  <section id="screen-feedback" class="screen">
+    <div class="card">
+      <h2>결과와 해결 방식, 어떠셨나요?</h2>
+
+      <div class="form-group">
+        <label>이 결과가 실제 우리 강아지 상황과 비슷한가요?</label>
+        <div class="radio-row">
+          <label><input type="radio" name="similar" value="예" required /> 예</label>
+          <label><input type="radio" name="similar" value="아니오" /> 아니오</label>
+          <label><input type="radio" name="similar" value="잘 모르겠음" /> 잘 모르겠음</label>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>문제 공감도 (1: 전혀 아니다 ~ 5: 매우 그렇다)</label>
+        <div class="scale-row" id="scale-empathy">
+          <label><input type="radio" name="empathy" value="1" required />1</label>
+          <label><input type="radio" name="empathy" value="2" />2</label>
+          <label><input type="radio" name="empathy" value="3" />3</label>
+          <label><input type="radio" name="empathy" value="4" />4</label>
+          <label><input type="radio" name="empathy" value="5" />5</label>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>해결 시나리오 관심도 (1: 전혀 아니다 ~ 5: 매우 그렇다)</label>
+        <div class="scale-row" id="scale-interest">
+          <label><input type="radio" name="interest" value="1" required />1</label>
+          <label><input type="radio" name="interest" value="2" />2</label>
+          <label><input type="radio" name="interest" value="3" />3</label>
+          <label><input type="radio" name="interest" value="4" />4</label>
+          <label><input type="radio" name="interest" value="5" />5</label>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="desired-price">이런 서비스가 있다면, 희망하는 월 이용 가격대는? (원)</label>
+        <input type="text" id="desired-price" placeholder="예: 10,000원 정도" />
+      </div>
+
+      <div class="form-group">
+        <label for="contact-email">연락처 이메일 (선택, 후속 조사 안내용)</label>
+        <input type="email" id="contact-email" placeholder="example@email.com" />
+      </div>
+
+      <div class="consent-box" id="contact-consent-box">
+        <label class="consent-label">
+          <input type="checkbox" id="consent-contact" />
+          입력하신 이메일을 후속 조사·서비스 개발 관련 연락 목적으로 수집하는 것에 동의합니다.
+        </label>
+      </div>
+
+      <button class="btn-primary" id="btn-submit-feedback">제출하기</button>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 화면 5: 완료 페이지 -->
+  <!-- (PRD Lite에는 화면 5로 별도 표기되지 않았으나, 상세 PRD 유저플로우의 -->
+  <!--  5단계 "완료"에 해당하며 피드백 제출의 자연스러운 종료 화면입니다) -->
+  <!-- ============================================================ -->
+  <section id="screen-complete" class="screen">
+    <div class="card center">
+      <h2>참여해주셔서 감사합니다 🐾</h2>
+      <p>소중한 응답이 서비스 개선에 큰 도움이 됩니다.</p>
+    </div>
+  </section>
+
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
